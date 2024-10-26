@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
-        origin: "http://localhost:3000",  // Frontend origin
+        origin: "https://sweetconnectify.netlify.app",  // Frontend origin
         methods: ["GET", "POST"],
         credentials: true
     }
@@ -17,7 +17,7 @@ const io = socketIo(server, {
 
 // Middleware
 app.use(cors({
-    origin: "http://localhost:3000",
+    origin: "https://sweetconnectify.netlify.app",
     credentials: true
 }));
 app.use(express.json());
