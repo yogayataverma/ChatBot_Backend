@@ -7,20 +7,17 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
-
-// Setup Socket.IO with CORS
 const io = socketIo(server, {
     cors: {
-        origin: "https://sweetconnectify.netlify.app",  // Ensure no trailing slash
+        origin: "https://sweetconnectify.netlify.app/",  // Frontend origin
         methods: ["GET", "POST"],
         credentials: true
     }
 });
 
-// Middleware for CORS
+// Middleware
 app.use(cors({
-    origin: "https://sweetconnectify.netlify.app",
-    origin: "https://sweetconnectify.netlify.app",
+    origin: "https://sweetconnectify.netlify.app/",
     credentials: true
 }));
 app.use(express.json());
@@ -41,7 +38,7 @@ const Message = mongoose.model('Message', MessageSchema);
 
 // Handle Socket.IO connections
 io.on('connection', async (socket) => {
-    console.log('New client connected:', socket.id);
+    console.log('New client connected');
 
     // Fetch all previous messages from the database and send to the client
     try {
@@ -54,7 +51,7 @@ io.on('connection', async (socket) => {
     // Listen for incoming chat messages from clients
     socket.on('chatMessage', async (msg) => {
         const newMessage = new Message({
-            sender: msg.sender,  // Sender is 'me' or 'other'
+            sender: msg.sender,  // Sender can be 'me' or 'other'
             text: msg.text
         });
 
@@ -72,10 +69,10 @@ io.on('connection', async (socket) => {
 
     // Handle disconnection
     socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
+        console.log('Client disconnected');
     });
 });
 
 // Start server
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
