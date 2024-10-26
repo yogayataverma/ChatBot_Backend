@@ -20,6 +20,7 @@ const io = socketIo(server, {
 // Middleware for CORS
 app.use(cors({
     origin: "https://sweetconnectify.netlify.app",
+    origin: "https://sweetconnectify.netlify.app",
     credentials: true
 }));
 app.use(express.json());
