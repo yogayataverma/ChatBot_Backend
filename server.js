@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
     cors: {
-        origin: "https://sweetconnectify.netlify.app",  // Frontend origin
+        origin: "https://sweetconnectify.netlify.app",
         methods: ["GET", "POST"],
         credentials: true
     }
@@ -40,10 +40,13 @@ const Message = mongoose.model('Message', MessageSchema);
 io.on('connection', async (socket) => {
     console.log('New client connected');
 
+    // Send online status to all clients
+    io.emit('userStatus', { status: 'online' });
+
     // Fetch all previous messages from the database and send to the client
     try {
         const messages = await Message.find().sort({ timestamp: 1 });
-        socket.emit('previousMessages', messages);  // Send all previous messages to the connected client
+        socket.emit('previousMessages', messages);
     } catch (err) {
         console.error('Error fetching messages:', err);
     }
@@ -51,28 +54,34 @@ io.on('connection', async (socket) => {
     // Listen for incoming chat messages from clients
     socket.on('chatMessage', async (msg) => {
         const newMessage = new Message({
-            sender: msg.sender,  // Sender can be 'me' or 'other'
-            text: msg.text
+            sender: msg.sender,
+            text: msg.text,
+            timestamp: new Date()
         });
 
         try {
             // Save message to MongoDB
             await newMessage.save();
             console.log('Message saved to DB');
+            
+            // Broadcast the message to all connected clients except the sender
+            socket.broadcast.emit('message', {
+                ...msg,
+                timestamp: newMessage.timestamp
+            });
         } catch (err) {
             console.error('Error saving message to DB:', err);
+            socket.emit('error', 'Failed to save message');
         }
-
-        // Broadcast the entire message object to all connected clients except the sender
-        socket.broadcast.emit('message', msg);
     });
 
     // Handle disconnection
     socket.on('disconnect', () => {
         console.log('Client disconnected');
+        io.emit('userStatus', { status: 'offline' });
     });
 });
 
 // Start server
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
