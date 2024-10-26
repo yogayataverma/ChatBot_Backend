@@ -7,17 +7,19 @@ require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
+
+// Setup Socket.IO with CORS
 const io = socketIo(server, {
     cors: {
-        origin: "http://localhost:3000",  // Frontend origin
+        origin: "https://sweetconnectify.netlify.app",  // Ensure no trailing slash
         methods: ["GET", "POST"],
         credentials: true
     }
 });
 
-// Middleware
+// Middleware for CORS
 app.use(cors({
-    origin: "http://localhost:3000",
+    origin: "https://sweetconnectify.netlify.app",
     credentials: true
 }));
 app.use(express.json());
@@ -38,7 +40,7 @@ const Message = mongoose.model('Message', MessageSchema);
 
 // Handle Socket.IO connections
 io.on('connection', async (socket) => {
-    console.log('New client connected');
+    console.log('New client connected:', socket.id);
 
     // Fetch all previous messages from the database and send to the client
     try {
@@ -69,7 +71,7 @@ io.on('connection', async (socket) => {
 
     // Handle disconnection
     socket.on('disconnect', () => {
-        console.log('Client disconnected');
+        console.log('Client disconnected:', socket.id);
     });
 });
 
