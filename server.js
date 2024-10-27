@@ -40,7 +40,7 @@ const io = socketIo(server, {
 });
 
 // Server Port
-const PORT = process.env.PORT || 3000; // Set default port
+const PORT = process.env.PORT || 6000; // Set default port
 
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
