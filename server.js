@@ -10,7 +10,7 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// CORS configuration
+// Middleware
 app.use(cors());
 app.use(express.json());
 
@@ -34,7 +34,7 @@ webpush.setVapidDetails(
 // Socket.IO setup
 const io = socketIo(server, {
   cors: {
-    origin: '*',
+    origin: process.env.CLIENT_URL || '*',
     methods: ['GET', 'POST']
   }
 });
@@ -46,28 +46,27 @@ const pushSubscriptions = new Map();
 io.on('connection', (socket) => {
   console.log(`Client connected: ${socket.id}`);
 
-  // Handle device registration
   socket.on('registerDevice', async ({ deviceId }) => {
+    console.log(`Registering device: ${deviceId}`);
     connectedClients.set(socket.id, deviceId);
     io.emit('userStatus', { status: 'online' });
 
     try {
       const previousMessages = await Message.find()
-        .sort({ timestamp: 1 })
+        .sort({ timestamp: -1 })
         .limit(100)
         .exec();
-      socket.emit('previousMessages', previousMessages);
+      socket.emit('previousMessages', previousMessages.reverse());
     } catch (err) {
       console.error('Error fetching messages:', err);
     }
   });
 
-  // Handle push subscription
   socket.on('pushSubscription', ({ subscription }) => {
+    console.log(`Storing push subscription for client: ${socket.id}`);
     pushSubscriptions.set(socket.id, subscription);
   });
 
-  // Handle chat messages
   socket.on('chatMessage', async (messageData) => {
     try {
       const message = new Message({
@@ -80,29 +79,36 @@ io.on('connection', (socket) => {
       io.emit('message', message);
 
       // Send push notifications to other clients
+      const notificationPromises = [];
       for (const [clientId, subscription] of pushSubscriptions.entries()) {
         if (clientId !== socket.id) {
-          try {
-            await webpush.sendNotification(
-              subscription,
-              JSON.stringify({
-                title: 'New Message in Connectify',
-                body: `${messageData.sender}: ${messageData.text}`,
-                icon: '/chat-icon.png'
-              })
-            );
-          } catch (error) {
-            console.error('Push notification error:', error);
-            pushSubscriptions.delete(clientId);
-          }
+          const notificationPayload = JSON.stringify({
+            title: 'New Message in Connectify',
+            body: `${messageData.sender}: ${messageData.text.substring(0, 100)}${messageData.text.length > 100 ? '...' : ''}`,
+            icon: '/chat-icon.png',
+            timestamp: new Date().toISOString()
+          });
+
+          const pushPromise = webpush.sendNotification(subscription, notificationPayload)
+            .catch((error) => {
+              console.error(`Push notification error for client ${clientId}:`, error);
+              if (error.statusCode === 410 || error.statusCode === 404) {
+                pushSubscriptions.delete(clientId);
+              }
+              return null;
+            });
+
+          notificationPromises.push(pushPromise);
         }
       }
+
+      await Promise.allSettled(notificationPromises);
+
     } catch (err) {
-      console.error('Error saving message:', err);
+      console.error('Error handling chat message:', err);
     }
   });
 
-  // Handle disconnection
   socket.on('disconnect', () => {
     const deviceId = connectedClients.get(socket.id);
     connectedClients.delete(socket.id);
@@ -113,9 +119,4 @@ io.on('connection', (socket) => {
     }
     console.log(`Client disconnected: ${socket.id}`);
   });
-});
-
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
 });
