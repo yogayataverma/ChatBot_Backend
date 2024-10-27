@@ -1,53 +1,49 @@
+// server.js
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const mongoose = require('mongoose');
 const cors = require('cors');
-const webpush = require('web-push');
-const Message = require('./models/Message');
 require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
-
-// Middleware
 app.use(cors());
-app.use(express.json());
 
-// MongoDB connection
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
-
-// Web Push configuration
-const vapidKeys = {
-  publicKey: process.env.VAPID_PUBLIC_KEY,
-  privateKey: process.env.VAPID_PRIVATE_KEY
-};
-
-webpush.setVapidDetails(
-  `mailto:${process.env.VAPID_EMAIL}`,
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
-);
-
-// Socket.IO setup
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || '*',
-    methods: ['GET', 'POST']
+    origin: "*",
+    methods: ["GET", "POST"]
   }
 });
 
-// Server Port
-const PORT = process.env.PORT || 6000; // Set default port
+// Store messages in memory for simplicity
+let messages = [];
 
 io.on('connection', (socket) => {
-  console.log(`Client connected: ${socket.id}`);
-  // Handle other socket events...
+  console.log('Client connected:', socket.id);
+
+  // Send previous messages to newly connected client
+  socket.emit('previousMessages', messages);
+
+  // Handle new messages
+  socket.on('chatMessage', (message) => {
+    messages.push(message);
+    io.emit('message', message);
+  });
+
+  // Handle device registration
+  socket.on('registerDevice', ({ deviceId }) => {
+    socket.deviceId = deviceId;
+    socket.emit('userStatus', { status: 'online' });
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
 });
 
-// Start the server
+const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
